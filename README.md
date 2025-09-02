@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Python based GUI for marking bounded boxes of objects in images for training Yolo v3 and v2 [https://github.com/AlexeyAB/darknet](https://github.com/AlexeyAB/darknet). You can generate your own **YOLO format** custom data with `yolo-labeling-tool`.
+Python based GUI for marking bounded boxes of objects in images for training Yolo v8. You can generate your own **YOLO format** custom data with `yolo-labeling-tool`.
 
 You should put the files listed below together. 
 
@@ -97,11 +97,3 @@ pip install pyinstaller
 pyinstaller --onefile --noconsole main.py
 ```
 _You need to carry `config.json`, `start.png`, `end.png` with your `.exe` as well._
-
-## 5. author
-| | |
-| --- | --- |
-| github | [https://github.com/YongWookHa/](https://github.com/YongWookHa/) |
-| e-mail | ywha12@gmail.com |
-
-enjoy the code.
