@@ -46,6 +46,7 @@ Before start the program, edit `config.json` file as your needs.
 Now, you can run the program by executing the code with python.
 
 ```bash
+ffmpeg -i input.mov -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -c:a copy output.mp4
 python main.py
 ```
 
