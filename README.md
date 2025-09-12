@@ -71,7 +71,7 @@ To write nessesary files for training Yolo, run `create_file_list.py`. Select a 
 * `train data` : list of train data directory
 * `test data` : list of test(validate) data directory
 
-And it will copy the test data images in `test_data` directory. The only thing left is making `.cfg` file which represent the inner structure of your network. `yolo-labeling-tool` cannot help you make `.cfg`. Find out the details of building custom data in [ultralytics/yolov3](https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data).
+And it will copy the test data images in `test_data` directory. The only thing left is making `.cfg` file which represent the inner structure of your network. `yolo-labeling-tool` cannot help you make `.cfg`. Find out the details of building custom data in [ultralytics/yolov8](https://github.com/ultralytics/yolov8/wiki/Train-Custom-Data).
 
 #### Mouse control
 
