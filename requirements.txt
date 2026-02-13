@@ -13,5 +13,5 @@ typed-ast==1.5.5
 wincertstore==0.2
 wrapt==1.11.1
 opencv-python==4.10.0.84
-pillow==11.3.0
+pillow==12.1.1
 ultralytics==8.3.0
