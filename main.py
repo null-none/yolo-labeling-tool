@@ -8,7 +8,7 @@ from glob import glob
 from PyQt5.QtCore import Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QFileDialog, QLabel
-from PyQt5.QtWidgets import QDesktopWidget, QMessageBox, QCheckBox
+from PyQt5.QtWidgets import QDesktopWidget, QMessageBox, QCheckBox, QProgressBar, QScrollArea
 from PyQt5.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QFont
 from PyQt5.QtCore import QRect, QPoint
 
@@ -27,7 +27,11 @@ class MyApp(QMainWindow):
         self.cursorPos = QLabel('      ')
         self.imageSize = QLabel('      ')
         self.autoLabel = QLabel('Manual Label')
-        self.progress = QLabel('                 ')  # reserve widget space
+        self.progress = QLabel('0/0')
+        self.progressBar = QProgressBar()
+        self.progressBar.setFixedWidth(150)
+        self.progressBar.setValue(0)
+        self.progressBar.setFormat('%v/%m')
 
         widget = QWidget(self)
         widget.setLayout(QHBoxLayout())
@@ -39,14 +43,15 @@ class MyApp(QMainWindow):
         widget.layout().addWidget(self.autoLabel)
         widget.layout().addStretch(2)
         widget.layout().addWidget(self.progress)
+        widget.layout().addWidget(self.progressBar)
         statusbar.addWidget(widget, 1)
 
         self.setGeometry(50, 50, 1200, 800)
         self.setWindowTitle('im2trainData')
-        self.show()
+        self.showMaximized()
         
     def fitSize(self):
-        self.setFixedSize(self.layout().sizeHint())
+        pass
 
 class ImageWidget(QWidget):
     def __init__(self, parent, key_cfg):
@@ -155,13 +160,6 @@ class ImageWidget(QWidget):
         self.pixmap = QPixmap(image_fn)
         self.W, self.H = self.pixmap.width(), self.pixmap.height()
 
-        if self.H > self.screen_height * 0.8:
-            resize_ratio = (self.screen_height * 0.8) / self.H
-            self.W = round(self.W * resize_ratio)
-            self.H = round(self.H * resize_ratio)
-            self.pixmap = QPixmap.scaled(self.pixmap, self.W, self.H,
-                                transformMode=Qt.SmoothTransformation)
-        
         self.parent.imageSize.setText('{}x{}'.format(self.W, self.H))
         self.setFixedSize(self.W, self.H)
         self.pixmapOriginal = QPixmap.copy(self.pixmap)
@@ -204,6 +202,7 @@ class MainWidget(QWidget):
                                                 if config_dict['key_'+str(i)]]
         self.crop_mode = False
         self.save_directory = None
+        self.history = []
 
         self.initUI()
 
@@ -212,7 +211,9 @@ class MainWidget(QWidget):
         inputPathButton = QPushButton('Input Path', self)
         savePathButton = QPushButton('Save Path', self)
         savePathButton.setEnabled(False)
-        okButton = QPushButton('Next', self)
+        self.okButton = QPushButton('Next', self)
+        self.backButton = QPushButton('Back', self)
+        self.backButton.setEnabled(False)
         cancelButton = QPushButton('Cancel', self)
         cropModeCheckBox = QCheckBox("Crop Mode", self)
         inputPathLabel = QLabel('Input Path not selected', self)
@@ -222,13 +223,14 @@ class MainWidget(QWidget):
         self.label_img = ImageWidget(self.parent, self.key_config)
 
         # Events
-        okButton.clicked.connect(self.setNextImage)
-        okButton.setEnabled(False)
+        self.okButton.clicked.connect(self.setNextImage)
+        self.okButton.setEnabled(False)
+        self.backButton.clicked.connect(self.setPrevImage)
         cancelButton.clicked.connect(self.label_img.cancelLast)
-        cropModeCheckBox.stateChanged.connect(lambda state: 
+        cropModeCheckBox.stateChanged.connect(lambda state:
                                         self.cropMode(state, savePathButton))
         inputPathButton.clicked.connect(lambda:self.registerInputPath(
-                                    inputPathButton, inputPathLabel, okButton))
+                                    inputPathButton, inputPathLabel, self.okButton))
         savePathButton.clicked.connect(lambda:self.registerSavePath(
                                           savePathButton, self.savePathLabel))
         
@@ -249,11 +251,17 @@ class MainWidget(QWidget):
         hbox.addStretch(3)
         hbox.addWidget(cropModeCheckBox)
         hbox.addStretch(1)
-        hbox.addWidget(okButton)
+        hbox.addWidget(self.backButton)
+        hbox.addWidget(self.okButton)
         hbox.addWidget(cancelButton)
 
+        scroll = QScrollArea()
+        scroll.setWidget(self.label_img)
+        scroll.setWidgetResizable(False)
+        scroll.setMaximumHeight(int(QDesktopWidget().screenGeometry().height() * 0.8))
+
         vbox = QVBoxLayout()
-        vbox.addWidget(self.label_img)
+        vbox.addWidget(scroll)
         vbox.addLayout(hbox)
 
         self.setLayout(vbox)
@@ -270,6 +278,9 @@ class MainWidget(QWidget):
                 return 'Not Marked'
             self.writeResults(res)
             self.label_img.resetResult()
+            if self.currentImg not in ['start.png', 'end.png']:
+                self.history.append(self.currentImg)
+                self.backButton.setEnabled(True)
             try:
                 self.currentImg = self.imgList.pop(0)
             except Exception:
@@ -291,8 +302,10 @@ class MainWidget(QWidget):
 
         basename = os.path.basename(self.currentImg)
         self.parent.fileName.setText(basename)
-        self.parent.progress.setText(str(self.total_imgs-len(self.imgList))+
-                                                    '/'+str(self.total_imgs))
+        done = self.total_imgs - len(self.imgList)
+        self.parent.progress.setText(str(done) + '/' + str(self.total_imgs))
+        self.parent.progressBar.setMaximum(self.total_imgs)
+        self.parent.progressBar.setValue(done)
 
         self.label_img.setPixmap(self.currentImg)
         self.label_img.update()
@@ -325,6 +338,45 @@ class MainWidget(QWidget):
                     crop_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
                     crop_img = Image.fromarray(crop_img)
                     crop_img.save(os.path.join(self.save_directory, filename), dpi=(300,300))
+
+    def setPrevImage(self):
+        if not self.history:
+            return
+        if self.currentImg not in ['start.png', 'end.png']:
+            self.imgList.insert(0, self.currentImg)
+        self.currentImg = self.history.pop()
+        if not self.history:
+            self.backButton.setEnabled(False)
+
+        self.label_img.resetResult()
+        self.label_img.setPixmap(self.currentImg)
+
+        txt_path = self.currentImg[:-4] + '.txt'
+        if os.path.exists(txt_path):
+            W, H = self.label_img.getRatio()
+            boxes = []
+            with open(txt_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 5:
+                        idx = int(parts[0])
+                        cx, cy, bw, bh = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
+                        lx = round((cx - bw / 2) * W)
+                        ly = round((cy - bh / 2) * H)
+                        rx = round((cx + bw / 2) * W)
+                        ry = round((cy + bh / 2) * H)
+                        boxes.append([lx, ly, rx, ry, idx])
+            self.label_img.results = boxes
+            os.remove(txt_path)
+
+        self.label_img.pixmap = self.label_img.drawResultBox()
+        self.label_img.update()
+        self.parent.fileName.setText(os.path.basename(self.currentImg))
+        done = self.total_imgs - len(self.imgList)
+        self.parent.progress.setText(str(done) + '/' + str(self.total_imgs))
+        self.parent.progressBar.setMaximum(self.total_imgs)
+        self.parent.progressBar.setValue(done)
+        self.parent.fitSize()
 
     def registerSavePath(self, savePathButton, label):
         savePathButton.toggle()
@@ -391,6 +443,8 @@ class MainWidget(QWidget):
                 break
         if e.key() == Qt.Key_Escape:
             self.label_img.cancelLast()
+        elif e.key() == Qt.Key_W:
+            self.setPrevImage()
         elif e.key() == Qt.Key_E:
             self.setNextImage()
         elif e.key() == Qt.Key_Q:
