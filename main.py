@@ -11,6 +11,65 @@ from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QFileDialog, QLabel
 from PyQt5.QtWidgets import QDesktopWidget, QMessageBox, QCheckBox, QProgressBar, QScrollArea
 from PyQt5.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QFont
 from PyQt5.QtCore import QRect, QPoint
+from PyQt5.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QColorDialog
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Settings')
+        self.colors = {}
+
+        with open('config.json', 'r') as f:
+            self.cfg = json.load(f)
+
+        layout = QFormLayout(self)
+
+        self.project_field = QLineEdit(self.cfg.get('project_name', ''))
+        layout.addRow('project_name', self.project_field)
+
+        self.key_fields = {}
+        self.color_buttons = {}
+        for i in range(1, 10):
+            key = f'key_{i}'
+            field = QLineEdit(self.cfg.get(key, ''))
+            self.key_fields[key] = field
+
+            color_hex = self.cfg.get(f'color_{i}', '#ff0000')
+            self.colors[f'color_{i}'] = color_hex
+            btn = QPushButton()
+            btn.setFixedWidth(40)
+            btn.setStyleSheet(f'background-color: {color_hex}')
+            btn.clicked.connect(lambda _, k=f'color_{i}', b=btn: self.pickColor(k, b))
+            self.color_buttons[f'color_{i}'] = btn
+
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0,0,0,0)
+            row_layout.addWidget(field)
+            row_layout.addWidget(btn)
+            layout.addRow(key, row_widget)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.save)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def pickColor(self, color_key, btn):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.colors[color_key] = color.name()
+            btn.setStyleSheet(f'background-color: {color.name()}')
+
+    def save(self):
+        self.cfg['project_name'] = self.project_field.text()
+        for key, field in self.key_fields.items():
+            self.cfg[key] = field.text()
+        for k, v in self.colors.items():
+            self.cfg[k] = v
+        with open('config.json', 'w') as f:
+            json.dump(self.cfg, f, indent=4)
+        self.accept()
+
 
 class MyApp(QMainWindow):
     def __init__(self):
@@ -54,12 +113,13 @@ class MyApp(QMainWindow):
         pass
 
 class ImageWidget(QWidget):
-    def __init__(self, parent, key_cfg):
+    def __init__(self, parent, key_cfg, key_colors=None):
         super(ImageWidget, self).__init__(parent)
         self.parent = parent
         self.results = []
         self.setMouseTracking(True)
         self.key_config = key_cfg
+        self.key_colors = key_colors or ['#ff0000'] * len(key_cfg)
         self.screen_height = QDesktopWidget().screenGeometry().height()
         self.last_idx = 0
 
@@ -99,7 +159,7 @@ class ImageWidget(QWidget):
     def mouseMoveEvent(self, event):
         self.parent.cursorPos.setText('({}, {})'
                                     .format(event.pos().x(), event.pos().y()))
-        if event.buttons() and Qt.LeftButton and self.drawing:
+        if event.buttons() & Qt.LeftButton and self.drawing:
             self.pixmap = QPixmap.copy(self.prev_pixmap)
             painter = QPainter(self.pixmap)
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
@@ -146,14 +206,17 @@ class ImageWidget(QWidget):
         painter = QPainter(res)
         font = QFont('mono', 15, 1)
         painter.setFont(font)
-        painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
         for box in self.results:
             lx, ly, rx, ry = box[:4]
+            if len(box) == 5:
+                idx = box[-1]
+                color = QColor(self.key_colors[idx])
+            else:
+                color = QColor(Qt.red)
+            painter.setPen(QPen(color, 2, Qt.SolidLine))
             painter.drawRect(lx, ly, rx-lx, ry-ly)
             if len(box) == 5:
-                painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
-                painter.drawText(lx, ly+15, self.key_config[box[-1]])
-                painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
+                painter.drawText(lx, ly+15, self.key_config[idx])
         return res
 
     def setPixmap(self, image_fn):
@@ -198,8 +261,10 @@ class MainWidget(QWidget):
         self.parent = parent
         self.currentImg = "start.png"
         config_dict = self.getConfigFromJson('config.json')
-        self.key_config = [config_dict['key_'+str(i)] for i in range(1, 10) 
-                                                if config_dict['key_'+str(i)]]
+        self.key_config = [config_dict[k] for i in range(1, 10)
+                           if (k := 'key_'+str(i)) in config_dict and config_dict[k]]
+        self.key_colors = [config_dict.get('color_'+str(i), '#ff0000') for i in range(1, 10)
+                           if config_dict.get('key_'+str(i))]
         self.crop_mode = False
         self.save_directory = None
         self.history = []
@@ -220,7 +285,7 @@ class MainWidget(QWidget):
         self.savePathLabel = QLabel('Save Path not selected', self)
         self.savePathLabel.setEnabled(False)
 
-        self.label_img = ImageWidget(self.parent, self.key_config)
+        self.label_img = ImageWidget(self.parent, self.key_config, self.key_colors)
 
         # Events
         self.okButton.clicked.connect(self.setNextImage)
@@ -248,7 +313,10 @@ class MainWidget(QWidget):
         vbox.addWidget(self.savePathLabel)
 
         hbox.addLayout(vbox)
+        settingsButton = QPushButton('Settings', self)
+        settingsButton.clicked.connect(lambda: SettingsDialog(self).exec_())
         hbox.addStretch(3)
+        hbox.addWidget(settingsButton)
         hbox.addWidget(cropModeCheckBox)
         hbox.addStretch(1)
         hbox.addWidget(self.backButton)
