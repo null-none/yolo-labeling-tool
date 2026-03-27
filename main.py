@@ -3,6 +3,8 @@ import os
 import cv2
 import json
 import numpy as np
+
+
 from PIL import Image, ExifTags
 from glob import glob
 from PyQt5.QtCore import Qt, QCoreApplication
@@ -13,13 +15,21 @@ from PyQt5.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QFont
 from PyQt5.QtCore import QRect, QPoint
 from PyQt5.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QColorDialog
 
-class SettingsDialog(QDialog):
+class Config:
+    def resource_path(self, relative_path):
+        """Get absolute path to resource, works for dev and PyInstaller bundle."""
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_path, relative_path)
+
+
+class SettingsDialog(QDialog, Config):
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Settings')
         self.colors = {}
 
-        with open('config.json', 'r') as f:
+        with open(self.resource_path('config.json'), 'r') as f:
             self.cfg = json.load(f)
 
         layout = QFormLayout(self)
@@ -66,12 +76,12 @@ class SettingsDialog(QDialog):
             self.cfg[key] = field.text()
         for k, v in self.colors.items():
             self.cfg[k] = v
-        with open('config.json', 'w') as f:
+        with open(self.resource_path('config.json'), 'w') as f:
             json.dump(self.cfg, f, indent=4)
         self.accept()
 
 
-class MyApp(QMainWindow):
+class MyApp(QMainWindow, Config):
     def __init__(self):
         super().__init__()
         self.initUI()
@@ -112,7 +122,8 @@ class MyApp(QMainWindow):
     def fitSize(self):
         pass
 
-class ImageWidget(QWidget):
+class ImageWidget(QWidget, Config):
+
     def __init__(self, parent, key_cfg, key_colors=None):
         super(ImageWidget, self).__init__(parent)
         self.parent = parent
@@ -126,7 +137,7 @@ class ImageWidget(QWidget):
         self.initUI()
         
     def initUI(self):
-        self.pixmap = QPixmap('start.png')
+        self.pixmap = QPixmap(self.resource_path('start.png'))
         self.label_img = QLabel()
         self.label_img.setObjectName("image")
         self.pixmapOriginal = QPixmap.copy(self.pixmap)
@@ -254,13 +265,13 @@ class ImageWidget(QWidget):
             self.pixmap = self.drawResultBox()
             self.update()
 
-class MainWidget(QWidget):
+class MainWidget(QWidget, Config):
     def __init__(self, parent):
         super(MainWidget, self).__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.parent = parent
         self.currentImg = "start.png"
-        config_dict = self.getConfigFromJson('config.json')
+        config_dict = self.getConfigFromJson(self.resource_path('config.json'))
         self.key_config = [config_dict[k] for i in range(1, 10)
                            if (k := 'key_'+str(i)) in config_dict and config_dict[k]]
         self.key_colors = [config_dict.get('color_'+str(i), '#ff0000') for i in range(1, 10)

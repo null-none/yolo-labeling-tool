@@ -90,11 +90,52 @@ Shortcut | Description |
 <kbd>E</kbd> | Next button |
 <kbd>A</kbd> | Auto Labeling Mode |
 
-## 4. ETC
+## 4. Building Installers
 
-If you want to build `.exe` file, use [pyinstaller](https://github.com/pyinstaller/pyinstaller).
+> **Note:** Builds are platform-specific. Run on Windows to produce `.exe`/`.msi`, run on macOS to produce `.app`/`.dmg`.
+
+### Option A — via setup.py (recommended)
+
+Uses PyInstaller under the hood. Data files are included automatically.
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --noconsole main.py
+python setup.py build
 ```
-_You need to carry `config.json`, `start.png`, `end.png` with your `.exe` as well._
+
+- Output: `dist/yolo-labeling-tool.exe` (Windows) or `dist/yolo-labeling-tool` (macOS)
+- `config.json`, `start.png`, `end.png` are bundled automatically (see `setup.py`).
+
+To keep the console window open for debugging:
+
+```bash
+python setup.py build --debug
+```
+
+---
+
+### Option B — PyInstaller directly
+
+```bash
+pyinstaller --onefile --noconsole --name yolo-labeling-tool main.py
+```
+
+After building, copy `config.json`, `start.png`, and `end.png` next to the executable.
+
+---
+
+### Creating a full installer (.msi / .dmg)
+
+After building with either option above:
+
+- **Windows MSI** — use [Inno Setup](https://jrsoftware.org/isinfo.php) (free). Point it at `dist/yolo-labeling-tool.exe`.
+- **macOS DMG** — run `brew install create-dmg`, then `create-dmg dist/yolo-labeling-tool.dmg dist/`.
+
+#### Customizing the build
+
+Open `setup.py` to configure:
+- `APP_NAME` — output executable name
+- `INCLUDE_FILES` — extra files to bundle alongside the executable
+
+## 5. ETC
+
+If you encounter missing module errors after building, add `--hidden-import=<module>` to the PyInstaller command or to the `cmd` list in `setup.py`.
