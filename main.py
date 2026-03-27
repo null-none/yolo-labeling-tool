@@ -475,7 +475,7 @@ class MainWidget(QWidget, Config):
             print("Input Path not selected")
             return -1 
         
-        types = ('*.jpg', '*.png')
+        types = ('*.jpg', '*.JPG', '*.jpeg', '*.JPEG', '*.png', '*.PNG')
         self.imgList = []
         for t in types:
             self.imgList.extend(glob(directory+'/'+t))
