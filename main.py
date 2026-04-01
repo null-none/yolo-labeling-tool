@@ -16,6 +16,14 @@ from PyQt5.QtCore import QRect, QPoint
 from PyQt5.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QColorDialog
 
 class Config:
+
+    def writable_config_path(self):
+        if getattr(sys, 'frozen', False):
+            base_path = os.path.dirname(sys.executable)
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_path, 'config.json')
+
     def resource_path(self, relative_path):
         """Get absolute path to resource, works for dev and PyInstaller bundle."""
         base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
@@ -29,7 +37,10 @@ class SettingsDialog(QDialog, Config):
         self.setWindowTitle('Settings')
         self.colors = {}
 
-        with open(self.resource_path('config.json'), 'r') as f:
+        config_path = self.writable_config_path()
+        if not os.path.exists(config_path):
+            config_path = self.resource_path('config.json')
+        with open(config_path, 'r') as f:
             self.cfg = json.load(f)
 
         layout = QFormLayout(self)
@@ -76,7 +87,7 @@ class SettingsDialog(QDialog, Config):
             self.cfg[key] = field.text()
         for k, v in self.colors.items():
             self.cfg[k] = v
-        with open(self.resource_path('config.json'), 'w') as f:
+        with open(self.writable_config_path(), 'w') as f:
             json.dump(self.cfg, f, indent=4)
         self.accept()
 
