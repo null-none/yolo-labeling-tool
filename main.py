@@ -282,7 +282,10 @@ class MainWidget(QWidget, Config):
         self.setFocusPolicy(Qt.StrongFocus)
         self.parent = parent
         self.currentImg = "start.png"
-        config_dict = self.getConfigFromJson(self.resource_path('config.json'))
+        config_path = self.writable_config_path()
+        if not os.path.exists(config_path):
+            config_path = self.resource_path('config.json')
+        config_dict = self.getConfigFromJson(config_path) 
         self.key_config = [config_dict[k] for i in range(1, 10)
                            if (k := 'key_'+str(i)) in config_dict and config_dict[k]]
         self.key_colors = [config_dict.get('color_'+str(i), '#ff0000') for i in range(1, 10)
@@ -336,7 +339,7 @@ class MainWidget(QWidget, Config):
 
         hbox.addLayout(vbox)
         settingsButton = QPushButton('Settings', self)
-        settingsButton.clicked.connect(lambda: SettingsDialog(self).exec_())
+        settingsButton.clicked.connect(self.openSettings)
         hbox.addStretch(3)
         hbox.addWidget(settingsButton)
         hbox.addWidget(cropModeCheckBox)
@@ -516,6 +519,20 @@ class MainWidget(QWidget, Config):
             except ValueError:
                 print("INVALID JSON file format.. Please provide a good json file")
                 exit(-1)
+
+    def openSettings(self):
+        dlg = SettingsDialog(self)
+        if dlg.exec_() == QDialog.Accepted:
+            config_path = self.writable_config_path()
+            if not os.path.exists(config_path):
+                config_path = self.resource_path('config.json')
+            config_dict = self.getConfigFromJson(config_path)
+            self.key_config = [config_dict[k] for i in range(1, 10)
+                               if (k := 'key_'+str(i)) in config_dict and config_dict[k]]
+            self.key_colors = [config_dict.get('color_'+str(i), '#ff0000') for i in range(1, 10)
+                               if config_dict.get('key_'+str(i))]
+            self.label_img.key_config = self.key_config
+            self.label_img.key_colors = self.key_colors
 
     def cropMode(self, state, savePathButton):
         if state == Qt.Checked:
