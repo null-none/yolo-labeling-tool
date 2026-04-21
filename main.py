@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QFileDialog, QLabel
 from PyQt5.QtWidgets import QDesktopWidget, QMessageBox, QCheckBox, QProgressBar, QScrollArea
-from PyQt5.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QFont
+from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QFont
 from PyQt5.QtCore import QRect, QPoint
 from PyQt5.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QColorDialog
 
@@ -490,9 +490,13 @@ class MainWidget(QWidget, Config):
             return -1 
         
         types = ('*.jpg', '*.JPG', '*.jpeg', '*.JPEG', '*.png', '*.PNG')
+        seen = set()
         self.imgList = []
         for t in types:
-            self.imgList.extend(glob(directory+'/'+t))
+            for f in glob(directory + '/' + t):
+                if f.lower() not in seen:
+                    seen.add(f.lower())
+                    self.imgList.append(f)
         self.total_imgs = len(self.imgList)
 
         to_skip = []
@@ -501,6 +505,11 @@ class MainWidget(QWidget, Config):
                 to_skip.append(imgPath)
         for skip in to_skip:
             self.imgList.remove(skip)
+
+        done = self.total_imgs - len(self.imgList)
+        self.parent.progress.setText(str(done) + '/' + str(self.total_imgs))
+        self.parent.progressBar.setMaximum(self.total_imgs)
+        self.parent.progressBar.setValue(done)
 
         inputPathLabel.setText(basename+'/')
         okButton.setEnabled(True)
